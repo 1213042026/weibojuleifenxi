@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>  
+<beans xmlns="http://www.springframework.org/schema/beans"  
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"  
+    xmlns:mvc="http://www.springframework.org/schema/mvc"  
+    xmlns:context="http://www.springframework.org/schema/context"  
+    xmlns:aop="http://www.springframework.org/schema/aop"   
+    xmlns:tx="http://www.springframework.org/schema/tx"  
+    xsi:schemaLocation="  
+        http://www.springframework.org/schema/beans   
+        http://www.springframework.org/schema/beans/spring-beans-3.0.xsd  
+        http://www.springframework.org/schema/mvc   
+         http://www.springframework.org/schema/mvc/spring-mvc-3.2.xsd 
+        http://www.springframework.org/schema/context   
+        http://www.springframework.org/schema/context/spring-context-3.0.xsd  
+        http://www.springframework.org/schema/tx  
+        http://www.springframework.org/schema/tx/spring-tx-3.0.xsd  
+      http://www.springframework.org/schema/aop  
+      http://www.springframework.org/schema/aop/spring-aop-3.0.xsd"  default-autowire="byName">  
+  <context:component-scan base-package="com.*" />
+    <bean id="viewResolver"  
+        class="org.springframework.web.servlet.view.InternalResourceViewResolver">  
+        <property name="prefix">  
+            <value>/</value>  
+        </property>  
+        <property name="suffix">  
+            <value>.jsp</value>  
+        </property>  
+    </bean>  
+	<!-- DataSource定义 -->
+	<bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource"
+		destroy-method="close">
+		<property name="driverClassName" value="com.mysql.jdbc.Driver" />
+		<property name="url" value="jdbc:mysql://10.206.131.43:3306/test?autoReconnect=true" />
+		<property name="username" value="root" />
+		<property name="password" value="skyaid8.6" />
+		<property name="maxActive" value="50" />
+		<property name="maxIdle" value="5" />
+		<property name="maxWait" value="5000000" />
+		<property name="removeAbandoned" value="true" />
+		<property name="removeAbandonedTimeout" value="50" />
+	</bean>
+	
+	
+	<!-- TransactionManager定义 -->
+	<bean id="transactionManager"
+		class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="dataSource" />
+	</bean>
+
+	<bean id="transactionTemplate"
+		class="org.springframework.transaction.support.TransactionTemplate">
+		<property name="transactionManager" ref="transactionManager" />
+	</bean>
+	<!-- iBatis SQL map定义-->
+	<bean id="sqlMapClient" class="org.springframework.orm.ibatis.SqlMapClientFactoryBean">
+		<property name="dataSource" ref="dataSource" />
+		<property name="configLocation" value="/WEB-INF/sqlMapConfig.xml"/>
+	</bean>
+	<!--根据sqlMapClien创建一个SqlMapClient模版类-->  
+  <bean id="sqlMapClientTemplate" class="org.springframework.orm.ibatis.SqlMapClientTemplate">  
+    <property name="sqlMapClient" ref="sqlMapClient"/>  
+  </bean>  
+     <!-- 配置事务特性   -->
+    <tx:advice id="txAdvice" transaction-manager="transactionManager">  
+    <tx:attributes>  
+        <tx:method name="select*" read-only="true" propagation="REQUIRED"/>  
+        <tx:method name="find*" read-only="true" propagation="REQUIRED"/>  
+        <tx:method name="save*" propagation="REQUIRED" isolation="REPEATABLE_READ"/>  
+        <tx:method name="update*" propagation="REQUIRED" isolation="REPEATABLE_READ"/>  
+        <tx:method name="add*" propagation="REQUIRED" isolation="REPEATABLE_READ"/>  
+        <tx:method name="delete*" propagation="REQUIRED" isolation="REPEATABLE_READ"/>  
+         <tx:method name="insert*" propagation="REQUIRED" isolation="REPEATABLE_READ"/>  
+    </tx:attributes>  
+  </tx:advice>   
+    
+  <!-- 配置事务代理拦截器  -->  
+  <bean id="baseTransactionProxy" abstract="true"   
+    class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">  
+    <property name="transactionManager">  
+      <ref bean="transactionManager"/>  
+    </property>  
+    <property name="transactionAttributes">  
+      <props>  
+        <prop key="insert*">PROPAGATION_REQUIRED</prop>  
+        <prop key="update*">PROPAGATION_REQUIRED</prop>  
+        <prop key="delete*">PROPAGATION_REQUIRED</prop>  
+      </props>     
+    </property>  
+  </bean> 
+    <!-- 配置哪些类的方法需要进行事务管理   --> 
+  <aop:config>  
+    <aop:pointcut id="baseServiceMethods" expression="execution(* com.correct.service.*.*(..))"/>  
+      <aop:advisor advice-ref="txAdvice" pointcut-ref="baseServiceMethods"/>  
+    </aop:config>  
+  <aop:aspectj-autoproxy/> 
+  <bean class="org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor"/>
+  <bean id="threadPoolTaskExecutor"
+        class="org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor">
+        <!-- 核心线程数，默认为1 -->
+        <property name="corePoolSize" value="2" />
+        <!-- 最大线程数，默认为Integer.MAX_VALUE -->
+        <property name="maxPoolSize" value="50" />
+        <!-- 队列最大长度，一般需要设置值>=notifyScheduledMainExecutor.maxNum；默认为Integer.MAX_VALUE
+21
+            <property name="queueCapacity" value="1000" /> -->
+        <!-- 线程池维护线程所允许的空闲时间，默认为60s -->
+        <property name="keepAliveSeconds" value="300" />
+        <!-- 线程池对拒绝任务（无线程可用）的处理策略，目前只支持AbortPolicy、CallerRunsPolicy；默认为后者 -->
+        <property name="rejectedExecutionHandler">
+            <!-- AbortPolicy:直接抛出java.util.concurrent.RejectedExecutionException异常 -->
+            <!-- CallerRunsPolicy:主线程直接执行该任务，执行完之后尝试添加下一个任务到线程池中，可以有效降低向线程池内添加任务的速度 -->
+            <!-- DiscardOldestPolicy:抛弃旧的任务、暂不支持；会导致被丢弃的任务无法再次被执行 -->
+            <!-- DiscardPolicy:抛弃当前任务、暂不支持；会导致被丢弃的任务无法再次被执行 -->
+            <bean class="java.util.concurrent.ThreadPoolExecutor$CallerRunsPolicy" />
+        </property>
+    </bean>
+     <bean id="weiboService" class="com.controller.service.WeiboService"/>
+    <bean id="weiboDao" class="com.controller.dao.WeiboDao"/>
+    <mvc:annotation-driven>
+     <mvc:message-converters register-defaults="true">
+    <bean class="org.springframework.http.converter.StringHttpMessageConverter">
+      <property name="supportedMediaTypes" value = "text/plain;charset=UTF-8" />
+    </bean>
+   </mvc:message-converters>
+     </mvc:annotation-driven>
+    <!-- 
+    <bean id="menuservice" class="com.tdc.cdc.sv.impl.MenuServiceImpl"/>
+    <bean id="menuDao" class="com.tdc.cdc.dao.impl.MenuDao"/>
+    <bean id="jobBaseDao" class="com.tdc.cdc.dao.impl.JobBaseDao"/>
+     <bean id="jbrnplndao" class="com.tdc.cdc.dao.impl.JobrunplanDao"/>
+      <bean id="jbrcdDao" class="com.tdc.cdc.dao.impl.JobrunrecordDao"/>
+      <bean id="jobBaseService" class="com.tdc.cdc.sv.impl.JobBaseServiceImpl"/>
+      <bean id="jobRunPlanService" class="com.tdc.cdc.sv.impl.JobRunPlanServiceImpl"/>
+      <bean id="jobRunRecordService" class="com.tdc.cdc.sv.impl.JobRunRecordServiceImpl"/>
+       <bean id="jobflowstatus" class="com.tdc.cdc.sv.impl.JobFlowStatusServiceImpl"/>
+       <bean id="jbflwdao" class="com.tdc.cdc.dao.impl.JobFlowStatusDao"/>
+        <bean id="baseJobRun" class="com.tdc.task.run.BaseJobRun"/>
+        <bean id="schedule" class="com.tdc.task.run.ScheduleMgr"/>
+        <bean id="maintriggerListener" class="com.tdc.task.run.MaintriggerListener"/>
+        <bean id="myReport" class="com.tdc.cdc.dao.impl.MyReportDao"/>
+         <bean id="myReportSVImpl" class="com.tdc.cdc.sv.impl.MyReportSVImpl"/>
+             <bean id="scriptUtil" class="com.tdc.cdc.common.ScriptUtil"/>
+             <bean id="varUtil" class="com.tdc.cdc.common.VarUtil"/> -->
+       <!-- 自动扫描注解的bean -->
+       <!-- 
+	<bean id="quartzDataSource"
+		class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+		<property name="driverClassName" value="com.mysql.jdbc.Driver" />
+		<property name="url" value="jdbc:mysql://10.206.132.125:3306/scheduledb?autoReconnect=true" />
+		<property name="username" value="quartz" />
+		<property name="password" value="123quartz" />
+	</bean>
+ -->
+	<!-- 时区 -->
+	<bean id="timeZone" class="java.util.TimeZone" factory-method="getTimeZone">
+		<constructor-arg value="GMT+08:00" />
+	</bean>
+ 
+	<!-- quartz持久化存储 -->
+	<!-- 启动触发器的配置开始 -->
+	<!-- 总管理类 如果将lazy-init='false'那么容器启动就会执行调度程序 -->
+	<!-- 
+	<bean id="scheduleFactoryBean"
+		class="org.springframework.scheduling.quartz.SchedulerFactoryBean"
+		lazy-init="true" autowire="no">
+		<property name="dataSource">
+			<ref bean="quartzDataSource" />
+		</property>
+		<property name="quartzProperties">
+			<props>
+					<prop key="org.quartz.scheduler.instanceId">abc</prop>
+				<prop key="org.quartz.threadPool.class">org.quartz.simpl.SimpleThreadPool</prop>
+				<prop key="org.quartz.threadPool.threadCount">20</prop>
+				<prop key="org.quartz.threadPool.threadPriority">5</prop>
+				<prop key="org.quartz.jobStore.misfireThreshold">60000</prop>
+				<prop key="org.quartz.jobStore.class">org.quartz.impl.jdbcjobstore.JobStoreTX</prop>
+				<prop key=" org.quartz.jobStore.driverDelegateClass">org.quartz.impl.jdbcjobstore.StdJDBCDelegate</prop>
+				<prop key="org.quartz.jobStore.tablePrefix">QRTZ_</prop>
+				<prop key="org.quartz.jobStore.dataSource">quartzDataSource</prop> 
+			</props>
+		</property>
+      <property name="jobFactory">
+         <bean class="com.tdc.task.run.MyJobFactory"></bean>
+      </property>
+      <property name="schedulerFactoryClass" value="org.quartz.impl.StdSchedulerFactory"></property> 
+		<property name="startupDelay" value="20" /> 
+       <property name="autoStartup" value="false"/>  
+		<property name="applicationContextSchedulerContextKey" value="applicationContext" />
+	</bean>
+     <bean id="myJobListener" class="com.tdc.task.run.MyJobListener"/>
+        -->
+</beans>

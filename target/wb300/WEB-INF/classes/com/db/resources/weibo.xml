@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>   
+<!DOCTYPE sqlMap         
+    PUBLIC "-//ibatis.apache.org//DTD SQL Map 2.0//EN"         
+    "http://ibatis.apache.org/dtd/sql-map-2.dtd">   
+<sqlMap>   
+  
+  <!-- Use type aliases to avoid typing the full classname every time. -->   
+  <typeAlias alias="weibopojo" type="com.controller.pojo.Weibopojo"/>   
+  <!-- Select with no parameters using the result map for Account class.  -->   
+  <select id="getweibopojo" resultClass="weibopojo"> 
+       select distinct  * from  weibo
+       where 1=1
+  </select> 
+  <insert id="addweibopojo" parameterClass="weibopojo">
+     insert into weibo(id,content,author) values(#id#,#content#,#author#)
+       <selectKey resultClass="int"  keyProperty="id" >    
+             SELECT last_insert_id() as id ;   
+     </selectKey> 
+  </insert>
+</sqlMap>  
